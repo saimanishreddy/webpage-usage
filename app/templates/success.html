@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submission Successful</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Submission Successful!</h1>
+        </header>
+
+        <main>
+            <div class="success-message">
+                <div class="success-icon">✓</div>
+                <h2>Thank you for your submission!</h2>
+                <p>Your information has been successfully stored in our database.</p>
+                
+                {% if submission_id %}
+                <div class="submission-summary">
+                    <h3>Submission Details:</h3>
+                    <div class="detail-item">
+                        <strong>Submission ID:</strong> {{ submission_id }}
+                    </div>
+                    <div class="detail-item">
+                        <strong>Status:</strong> Successfully stored in database
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="actions">
+                    <a href="/" class="btn btn-primary">Submit Another Form</a>
+                    <a href="/submissions" class="btn btn-secondary">View All Submissions</a>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 AWS Web Application Demo</p>
+        </footer>
+    </div>
+</body>
+</html>

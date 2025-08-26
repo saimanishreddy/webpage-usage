@@ -1,0 +1,27 @@
+[Unit]
+Description=Flask Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/webapp/webapp
+Environment=PATH=/opt/webapp/webapp/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=FLASK_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=5000
+Environment=DB_HOST=localhost
+Environment=DB_USER=webappuser
+Environment=DB_PASSWORD=webapp_password
+Environment=DB_NAME=webapp_db
+Environment=SECRET_KEY=your-super-secret-key-change-in-production-12345
+ExecStart=/opt/webapp/webapp/.venv/bin/python /opt/webapp/webapp/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webapp
+
+[Install]
+WantedBy=multi-user.target

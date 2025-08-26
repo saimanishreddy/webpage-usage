@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submissions - Web Application</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>User Submissions</h1>
+            <p><em>Debug view - only available in development mode</em></p>
+        </header>
+
+        <main>
+            {% if submissions %}
+                <div class="submissions-list">
+                    {% for submission in submissions %}
+                        <div class="submission-item">
+                            <h3>Submission #{{ submission.id }}</h3>
+                            <div class="detail-item">
+                                <strong>Name:</strong> {{ submission.name }}
+                            </div>
+                            <div class="detail-item">
+                                <strong>Email:</strong> {{ submission.email }}
+                            </div>
+                            <div class="detail-item">
+                                <strong>Message:</strong> {{ submission.message or 'No message provided' }}
+                            </div>
+                            <div class="detail-item">
+                                <strong>Submitted:</strong> {{ submission.created_at }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-submissions">
+                    <p>No submissions found.</p>
+                </div>
+            {% endif %}
+            
+            <div class="actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Back to Form</a>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 AWS Web Application Demo</p>
+        </footer>
+    </div>
+</body>
+</html>

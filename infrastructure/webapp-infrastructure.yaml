@@ -1,0 +1,545 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for Flask web application with RDS MySQL database'
+
+Parameters:
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair
+  
+  SSHLocation:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: IP address range that can SSH to the EC2 instance
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x
+  
+  DBUsername:
+    Type: String
+    Default: webappuser
+    Description: Database administrator username
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Database administrator password
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Must contain only alphanumeric characters
+  
+  AppCodeBucket:
+    Type: String
+    Description: S3 bucket name containing the application code
+    Default: webapp-code-bucket-saiandru
+
+Resources:
+  # S3 Bucket for Application Code
+  # AppCodeBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Ref AppCodeBucket
+  #     VersioningConfiguration:
+  #       Status: Enabled
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: true
+  #       BlockPublicPolicy: true
+  #       IgnorePublicAcls: true
+  #       RestrictPublicBuckets: true
+  #     Tags:
+  #       - Key: Name
+  #         Value: WebApp-Code-Bucket
+
+  # VPC and Networking Components
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: WebApp-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: WebApp-IGW
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: WebApp-Public-Subnet-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: WebApp-Public-Subnet-2
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: WebApp-Private-Subnet-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: WebApp-Private-Subnet-2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: WebApp-Public-Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  # Private subnets use default route table (no internet access needed for RDS only)
+
+  # Security Groups
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebApp-ALB-SG
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTP traffic from internet
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS traffic from internet
+      Tags:
+        - Key: Name
+          Value: WebApp-ALB-SecurityGroup
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebApp-EC2-SG
+      GroupDescription: Security group for EC2 instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allow Flask app traffic from ALB
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+          Description: Allow SSH access
+      Tags:
+        - Key: Name
+          Value: WebApp-EC2-SecurityGroup
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebApp-RDS-SG
+      GroupDescription: Security group for RDS database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+          Description: Allow MySQL access from EC2
+      Tags:
+        - Key: Name
+          Value: WebApp-RDS-SecurityGroup
+
+  # IAM Role for EC2 Instance
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/webapp/*'
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBClusters
+                  - ssm:*
+                  - ec2messages:*
+                  - ssmmessages:*
+                Resource: '*'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub 'arn:aws:s3:::${AppCodeBucket}/*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # Database Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS database
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: WebApp-DB-SubnetGroup
+
+  # RDS MySQL Database
+  RDSDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: webapp-mysql-db
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: '8.0'
+      AllocatedStorage: 20
+      StorageType: gp2
+      DBName: webapp_db
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 7
+      MultiAZ: false
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      Tags:
+        - Key: Name
+          Value: WebApp-MySQL-Database
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: WebApp-ALB
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: WebApp-ApplicationLoadBalancer
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: WebApp-TG
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetType: instance
+      Targets:
+        - Id: !Ref EC2Instance
+          Port: 5000
+      Tags:
+        - Key: Name
+          Value: WebApp-TargetGroup
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # EC2 Instance with User Data
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSDatabase
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT15M
+    Properties:
+      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}'
+      InstanceType: t3.micro
+      KeyName: !Ref KeyPairName
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      SubnetId: !Ref PublicSubnet1
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          
+          # Logging function
+          log() {
+              echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a /var/log/webapp-setup.log
+          }
+          
+          log "Starting webapp setup..."
+          
+          # Update system and install required packages
+          log "Updating system packages..."
+          yum update -y
+          yum install -y python3 python3-pip git unzip wget curl mysql
+          
+          # Install AWS CLI v2
+          log "Installing AWS CLI v2..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install 
+          rm -rf aws awscliv2.zip
+          
+          # Create application directory
+          log "Creating application directory..."
+          mkdir -p /opt/webapp
+          cd /opt/webapp
+          
+          # Download application code from S3
+          log "Downloading application code from S3..."
+          aws s3 cp s3://${AppCodeBucket}/webapp.zip /opt/webapp/webapp.zip
+          unzip webapp.zip
+          rm webapp.zip
+          
+          # Navigate to the extracted webapp directory
+          cd /opt/webapp/webapp
+          
+          # Set proper permissions first
+          chown -R ec2-user:ec2-user /opt/webapp
+          
+          # Install uv package manager for ec2-user
+          log "Installing uv package manager..."
+          sudo -u ec2-user bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+          
+          # Set up Python environment
+          log "Setting up Python virtual environment..."
+          sudo -u ec2-user bash -c 'cd /opt/webapp/webapp && ~/.local/bin/uv venv .venv --python 3.11'
+          sudo -u ec2-user bash -c 'cd /opt/webapp/webapp && ~/.local/bin/uv pip install -r requirements.txt'
+          
+          # Copy and configure systemd service file
+          log "Configuring systemd service..."
+          cp webapp.service /etc/systemd/system/webapp.service
+          
+          # Update service file with correct environment variables
+          sed -i "s|Environment=DB_HOST=.*|Environment=DB_HOST=${RDSDatabase.Endpoint.Address}|" /etc/systemd/system/webapp.service
+          sed -i "s|Environment=DB_USER=.*|Environment=DB_USER=${DBUsername}|" /etc/systemd/system/webapp.service
+          sed -i "s|Environment=DB_PASSWORD=.*|Environment=DB_PASSWORD=${DBPassword}|" /etc/systemd/system/webapp.service
+          sed -i "s|Environment=DB_NAME=.*|Environment=DB_NAME=webapp_db|" /etc/systemd/system/webapp.service
+          sed -i "s|Environment=SECRET_KEY=.*|Environment=SECRET_KEY=webapp-secret-key-$(date +%s)-${AWS::StackId}|" /etc/systemd/system/webapp.service
+          
+          # Set proper permissions
+          chown -R ec2-user:ec2-user /opt/webapp
+          chmod +x /opt/webapp/webapp/simple_init_db.py
+          
+          # Wait for RDS to be available
+          log "Waiting for RDS database to be available..."
+          aws rds wait db-instance-available --db-instance-identifier webapp-mysql-db --region ${AWS::Region}
+          
+          # Initialize database using simplified script
+          log "Initializing database..."
+          cd /opt/webapp/webapp
+          
+          # Set environment variables for database initialization
+          export DB_HOST="${RDSDatabase.Endpoint.Address}"
+          export DB_USER="${DBUsername}"
+          export DB_PASSWORD="${DBPassword}"
+          export DB_NAME="webapp_db"
+          
+          # Run database initialization with the virtual environment
+          sudo -u ec2-user bash -c "
+          cd /opt/webapp/webapp
+          export DB_HOST='${RDSDatabase.Endpoint.Address}'
+          export DB_USER='${DBUsername}'
+          export DB_PASSWORD='${DBPassword}'
+          export DB_NAME='webapp_db'
+          ./.venv/bin/python simple_init_db.py
+          "
+          
+          # Enable and start the service
+          log "Starting webapp service..."
+          systemctl daemon-reload
+          systemctl enable webapp
+          systemctl start webapp
+          
+          # Wait for service to be ready
+          sleep 15
+          
+          # Test the application
+          log "Testing application..."
+          if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+              log "Application is running successfully"
+              /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+          else
+              log "Application failed to start, checking logs..."
+              systemctl status webapp
+              journalctl -u webapp -n 20
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+          fi
+      Tags:
+        - Key: Name
+          Value: WebApp-EC2-Instance
+
+  # Register EC2 instance with ALB Target Group
+  # Note: Targets are specified directly in the TargetGroup resource
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPC-ID'
+
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1-ID'
+
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2-ID'
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet1-ID'
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet2-ID'
+
+  DatabaseEndpoint:
+    Description: RDS MySQL Database Endpoint
+    Value: !GetAtt RDSDatabase.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-DB-Endpoint'
+
+  ApplicationLoadBalancerDNS:
+    Description: Application Load Balancer DNS Name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${AWS::StackName}-ALB-DNS'
+
+  ApplicationURL:
+    Description: URL of the web application
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+
+  EC2InstanceId:
+    Description: EC2 Instance ID
+    Value: !Ref EC2Instance
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2-Instance-ID'
+
+  EC2PublicIP:
+    Description: EC2 Instance Public IP
+    Value: !GetAtt EC2Instance.PublicIp
+
+  DatabaseName:
+    Description: Database Name
+    Value: webappdb
+  
+  AppCodeBucketName:
+    Description: S3 Bucket containing application code
+    Value: !Ref AppCodeBucket

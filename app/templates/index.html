@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Submission Form</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>User Submission Form</h1>
+            <p>Please fill out the form below to submit your information</p>
+        </header>
+
+        <main>
+            <form method="POST" action="/" class="submission-form">
+                <div class="form-group">
+                    <label for="name">Name *</label>
+                    <input type="text" id="name" name="name" required 
+                           placeholder="Enter your full name"
+                           maxlength="100"
+                           aria-describedby="name-help"
+                           value="{{ request.form.name if request.form.name }}">
+                    <small id="name-help" class="form-help">Required field, maximum 100 characters</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" name="email" required 
+                           placeholder="Enter your email address"
+                           maxlength="100"
+                           aria-describedby="email-help"
+                           value="{{ request.form.email if request.form.email }}">
+                    <small id="email-help" class="form-help">Required field, maximum 100 characters</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea id="message" name="message" rows="5" 
+                              placeholder="Enter your message (optional)"
+                              maxlength="1000"
+                              aria-describedby="message-help">{{ request.form.message if request.form.message }}</textarea>
+                    <small id="message-help" class="form-help">Optional field, maximum 1000 characters</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                    <button type="reset" class="btn btn-secondary">Clear Form</button>
+                </div>
+            </form>
+
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {% if category == 'error' %}
+                                <strong>Error:</strong>
+                            {% elif category == 'success' %}
+                                <strong>Success:</strong>
+                            {% endif %}
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </main>
+
+        <footer>
+            <p>&copy; 2024 AWS Web Application Demo</p>
+        </footer>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
