@@ -43,9 +43,9 @@ show_usage() {
     echo "Usage: $0 [S3_BUCKET] [REGION] [STACK_NAME]"
     echo
     echo "Arguments:"
-    echo "  S3_BUCKET    S3 bucket name (default: webapp-code-bucket-saiandru)"
+    echo "  S3_BUCKET    S3 bucket name (default: webapp-code-bucket-choiceofyourname)"
     echo "  REGION       AWS region (default: us-east-1)"
-    echo "  STACK_NAME   CloudFormation stack name (default: webapp-code-bucket-saiandru)"
+    echo "  STACK_NAME   CloudFormation stack name (default: webapp-code-bucket-choiceofyourname)"
     echo
     echo "Examples:"
     echo "  $0                                    # Use defaults"

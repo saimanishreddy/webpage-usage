@@ -10,7 +10,7 @@ A simple Flask web application that collects user input and stores it in a MySQL
 
 ### Deploy in One Command
 ```bash
-./deploy.sh webapp-code-bucket-saiandru us-east-1 webapp-stack YOUR_KEY_PAIR_NAME YourSecurePass123
+./deploy.sh webapp-code-bucket-choiceofyourname us-east-1 webapp-stack YOUR_KEY_PAIR_NAME YourSecurePass123
 ```
 
 ### Manual Steps
@@ -27,7 +27,7 @@ A simple Flask web application that collects user input and stores it in a MySQL
      --parameters \
        ParameterKey=KeyPairName,ParameterValue=YOUR_KEY_PAIR_NAME \
        ParameterKey=DBPassword,ParameterValue=YourSecurePass123 \
-       ParameterKey=AppCodeBucket,ParameterValue=webapp-code-bucket-saiandru \
+       ParameterKey=AppCodeBucket,ParameterValue=webapp-code-bucket-choiceofyourname \
      --capabilities CAPABILITY_IAM \
      --region us-east-1
    ```
@@ -83,7 +83,7 @@ sudo tail -f /var/log/webapp-setup.log
 ## Cleanup
 ```bash
 aws cloudformation delete-stack --stack-name webapp-database-stack --region us-east-1
-aws s3 rb s3://webapp-code-bucket-saiandru --force
+aws s3 rb s3://webapp-code-bucket-choiceofyourname --force
 ```
 
 ## Architecture

@@ -35,7 +35,7 @@ Parameters:
   AppCodeBucket:
     Type: String
     Description: S3 bucket name containing the application code
-    Default: webapp-code-bucket-saiandru
+    Default: webapp-code-bucket-choiceofyourname
 
 Resources:
   # S3 Bucket for Application Code

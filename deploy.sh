@@ -43,7 +43,7 @@ show_usage() {
     echo "Usage: $0 [S3_BUCKET] [REGION] [STACK_NAME] [KEY_PAIR] [DB_PASSWORD]"
     echo
     echo "Arguments:"
-    echo "  S3_BUCKET    S3 bucket name (default: webapp-code-bucket-saiandru)"
+    echo "  S3_BUCKET    S3 bucket name (default: webapp-code-bucket-choiceofyourname)"
     echo "  REGION       AWS region (default: us-east-1)"
     echo "  STACK_NAME   CloudFormation stack name (default: webapp-database-stack)"
     echo "  KEY_PAIR     EC2 Key Pair name (required)"
